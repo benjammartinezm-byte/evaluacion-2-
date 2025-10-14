@@ -1,0 +1,315 @@
+import requests
+
+import urllib.parse
+
+
+
+route_url = "https://graphhopper.com/api/1/route?"
+
+key = "00b44ead-66c6-4da3-8392-4768273d023c" # Reemplaza con tu API key
+
+
+
+def geocoding(location, key):
+
+  while location.strip() == "":
+
+    location = input("Por favor, ingresa nuevamente la ubicación: ")
+
+
+
+  geocode_url = "https://graphhopper.com/api/1/geocode?"
+
+  url = geocode_url + urllib.parse.urlencode({"q": location, "limit": "1", "key": key})
+
+
+
+  respuesta = requests.get(url)
+
+  json_data = respuesta.json()
+
+  status = respuesta.status_code
+
+
+
+  if status == 200 and len(json_data["hits"]) != 0:
+
+    lat = json_data["hits"][0]["point"]["lat"]
+
+    lng = json_data["hits"][0]["point"]["lng"]
+
+    nombre = json_data["hits"][0]["name"]
+
+    valor = json_data["hits"][0].get("osm_value", "")
+
+
+
+    pais = json_data["hits"][0].get("country", "")
+
+    estado = json_data["hits"][0].get("state", "")
+
+
+
+    if estado and pais:
+
+      nueva_loc = f"{nombre}, {estado}, {pais}"
+
+    elif estado:
+
+      nueva_loc = f"{nombre}, {estado}"
+
+    elif pais:
+
+      nueva_loc = f"{nombre}, {pais}"
+
+    else:
+
+      nueva_loc = nombre
+
+
+
+    print(f"URL de Geocodificación para {nueva_loc} (Tipo de ubicación: {valor})\n{url}")
+
+  else:
+
+    lat, lng = "null", "null"
+
+    nueva_loc = location
+
+    if status != 200:
+
+      print(f"Estado de la API de Geocodificación: {status}\nMensaje de error: {json_data.get('message', 'Sin mensaje')}")
+
+
+
+  return status, lat, lng, nueva_loc
+
+
+
+
+
+def traducir_instruccion(texto_instruccion):
+
+  """
+
+  Aquí puedes mejorar y añadir traducciones según los textos que devuelve Graphhopper.
+
+  Por ahora, hacemos una traducción simple con reemplazos comunes.
+
+  """
+
+
+
+  traducciones = {
+
+    "Turn left": "Gira a la izquierda",
+
+    "Turn right": "Gira a la derecha",
+
+    "Continue": "Continúa",
+
+    "Head": "Dirígete",
+
+    "Destination": "Destino",
+
+    "roundabout": "rotonda",
+
+    "onto": "en",
+
+    # Agrega más según necesites
+
+  }
+
+
+
+  for en, es in traducciones.items():
+
+    texto_instruccion = texto_instruccion.replace(en, es)
+
+
+
+  return texto_instruccion
+
+
+
+
+
+print("+++++++++++++++++++++++++++++++++++++++++++++")
+
+print("Perfiles de vehículo disponibles en Graphhopper:")
+
+print("+++++++++++++++++++++++++++++++++++++++++++++")
+
+print("carro, bicicleta, a pie")
+
+print("+++++++++++++++++++++++++++++++++++++++++++++")
+
+
+
+perfiles = {"carro": "car", "bicicleta": "bike", "a pie": "foot"}
+
+
+
+while True:
+
+  vehiculo_input = input("Ingrese un perfil de vehículo de la lista anterior (o 's' / 'salir' para terminar): ").lower().strip()
+
+  if vehiculo_input in ["s", "salir"]:
+
+    print("Saliendo del programa. ¡Hasta luego!")
+
+    break
+
+
+
+  if vehiculo_input in perfiles:
+
+    vehiculo = perfiles[vehiculo_input]
+
+  else:
+
+    vehiculo = "car"
+
+    print("No se ingresó un perfil válido. Se usará el perfil 'carro' por defecto.")
+
+
+
+  loc1 = input("Ubicación de inicio (o 's' / 'salir' para terminar): ").strip()
+
+  if loc1.lower() in ["s", "salir"]:
+
+    print("Saliendo del programa. ¡Hasta luego!")
+
+    break
+
+
+
+  orig = geocoding(loc1, key)
+
+  if orig[0] != 200:
+
+    print("Error en la geocodificación del punto de inicio. Intenta nuevamente.")
+
+    continue
+
+
+
+  loc2 = input("Destino (o 's' / 'salir' para terminar): ").strip()
+
+  if loc2.lower() in ["s", "salir"]:
+
+    print("Saliendo del programa. ¡Hasta luego!")
+
+    break
+
+
+
+  dest = geocoding(loc2, key)
+
+  if dest[0] != 200:
+
+    print("Error en la geocodificación del destino. Intenta nuevamente.")
+
+    continue
+
+
+
+  print("=================================================")
+
+
+
+  # Construir URL para la ruta
+
+  op = "&point=" + str(orig[1]) + "%2C" + str(orig[2])
+
+  dp = "&point=" + str(dest[1]) + "%2C" + str(dest[2])
+
+  params = {"key": key, "vehicle": vehiculo, "locale": "es"} # locale en 'es' para instrucciones en español si Graphhopper lo soporta
+
+  paths_url = route_url + urllib.parse.urlencode(params) + op + dp
+
+
+
+  response = requests.get(paths_url)
+
+  paths_status = response.status_code
+
+  paths_data = response.json()
+
+
+
+  print(f"Estado de la API de Rutas: {paths_status}\nURL de la API de Rutas:\n{paths_url}")
+
+  print("=================================================")
+
+  print(f"Indicaciones de viaje de {orig[3]} a {dest[3]} en {vehiculo_input}")
+
+  print("=================================================")
+
+
+
+  if paths_status == 200 and "paths" in paths_data:
+
+    distancia_m = paths_data["paths"][0]["distance"]
+
+    distancia_km = distancia_m / 1000
+
+    distancia_millas = distancia_km / 1.61
+
+
+
+    tiempo_ms = paths_data["paths"][0]["time"]
+
+    hr = int(tiempo_ms / 1000 / 60 / 60)
+
+    min = int((tiempo_ms / 1000 / 60) % 60)
+
+    sec = int((tiempo_ms / 1000) % 60)
+
+
+
+    print(f"Distancia recorrida: {distancia_millas:.2f} millas / {distancia_km:.2f} km")
+
+    print(f"Distancia recorrida: {distancia_m:.2f} metros")
+
+    print(f"Duración del viaje: {hr:02d}:{min:02d}:{sec:02d}")
+
+    print("=================================================")
+
+    print("Instrucciones paso a paso:")
+
+
+
+    instrucciones = paths_data["paths"][0].get("instructions", [])
+
+
+
+    if instrucciones:
+
+      for instruccion in instrucciones:
+
+        texto = instruccion.get("text", "")
+
+        texto_es = traducir_instruccion(texto)
+
+        dist = instruccion.get("distance", 0)
+
+        print(f"{texto_es} ( {dist/1000:.2f} km / {dist/1000/1.61:.2f} millas )")
+
+        print("-------------------------------------------------")
+
+    else:
+
+      print("No se encontraron instrucciones para esta ruta.")
+
+
+
+    print("=================================================")
+
+  else:
+
+    print("Error en la obtención de la ruta.")
+
+    print("Mensaje de error:", paths_data.get("message", "Sin mensaje"))
+
+    print("*************************************************")
